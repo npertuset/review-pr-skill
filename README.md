@@ -82,6 +82,7 @@ say "must"/"never"/"always".
 VERDICT: AGREE | REVISE
 STATUS: COMPLETE | DEGRADED | FAILED
 MODELS: reviewer=codex/gpt-5.6 verifier=claude/fable
+REVIEWED: base=<sha> head=<sha>
 OBJECTIONS:
 1. [blocking] src/x.ts:42 — <what is wrong> — <input/state → wrong result> — <rule violated>
 QUESTIONS-FOR-USER:
@@ -91,8 +92,11 @@ NOTES:
 ```
 
 `AGREE` if and only if zero `[blocking]` objections survive. `STATUS`
-says whether the review saw everything it needed: a gate passes only
-on `AGREE` **and** `COMPLETE`. A `DEGRADED` review (scope, base branch,
+says whether the review saw everything it needed. `REVIEWED` pins the
+SHAs that were judged; the driver rejects the verdict as stale if
+either no longer matches the live branch or base. A gate passes only
+on `AGREE`, `COMPLETE`, and matching SHAs. A block missing any of the
+three lines is treated as `FAILED`. A `DEGRADED` review (scope, base branch,
 or counterpart unreachable) reports what it could see and names what
 it could not; it is never a pass. Every objection must carry a
 concrete failure scenario; without one it is a note. Orchestrators

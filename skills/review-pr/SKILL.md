@@ -186,13 +186,19 @@ so do not review; **delegate and relay**:
    **verbatim** — it is the counterpart's judgment, not yours to
    soften — and surface each `QUESTIONS-FOR-USER` item as a question
    to answer now.
-6. If the counterpart CLI is missing, errors, or returns no
-   `VERDICT:` or `STATUS:` line, the gate **failed to run** — report
-   exactly that with `STATUS: FAILED` (never treat it as an AGREE),
-   and offer a labeled self-review as the explicit fallback. A
+6. If the counterpart CLI is missing, errors, or returns a block
+   missing any of `VERDICT:`, `STATUS:`, or `REVIEWED:`, the gate
+   **failed to run** — report exactly that with `STATUS: FAILED`
+   (never treat it as an AGREE), and offer a labeled self-review as
+   the explicit fallback. Then check the SHAs: `REVIEWED: head=`
+   must equal the branch's current tip (`gh pr view --json
+   headRefOid`, or `git rev-parse origin/<branch>` after a fetch) and
+   `base=` must equal the freshly fetched `origin/<default>`. Either
+   mismatch means the verdict judged a merge that no longer exists —
+   report `STATUS: FAILED (stale: <which SHA moved>)` and re-run. A
    verdict carrying `STATUS: DEGRADED` is relayed as degraded, never
    as a pass, even when its `VERDICT:` is `AGREE`: the gate passes
-   only on `AGREE` **and** `COMPLETE`.
+   only on `AGREE`, `COMPLETE`, and matching SHAs.
 7. After fixes, re-invoke the same way with an exchange file carrying
    each prior objection and your response — that is round 2.
    Maximum 3 rounds, then present both positions to the user.
