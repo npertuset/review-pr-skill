@@ -4,10 +4,15 @@
 #   ./install.sh            symlink (git pull keeps both harnesses current)
 #   ./install.sh --copy     copy a snapshot instead of linking
 #   ./install.sh --uninstall
+#
+# Only touches installations it created: a symlink pointing into this clone,
+# or a copy carrying the marker file below. Anything else at a target path is
+# left alone and reported.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC="$HERE/skills/review-pr"
+MARKER=".installed-by-review-pr-skill"
 TARGETS=("$HOME/.claude/skills/review-pr" "$HOME/.codex/skills/review-pr")
 MODE="link"
 
@@ -18,27 +23,47 @@ case "${1:-}" in
   *) echo "usage: $0 [--copy|--uninstall]" >&2; exit 2 ;;
 esac
 
+# 0 = nothing there, 1 = ours (symlink into this clone or marked copy), 2 = foreign
+classify() {
+  local target="$1"
+  if [ -L "$target" ]; then
+    local dest
+    dest="$(readlink -f "$target" 2>/dev/null || true)"
+    [ "$dest" = "$(readlink -f "$SRC")" ] && return 1
+    return 2
+  fi
+  if [ -e "$target" ]; then
+    [ -f "$target/$MARKER" ] && return 1
+    return 2
+  fi
+  return 0
+}
+
+status=0
 for target in "${TARGETS[@]}"; do
   parent="$(dirname "$target")"
+  set +e; classify "$target"; owned=$?; set -e
+  if [ "$owned" = 2 ]; then
+    echo "skipping $target — not installed by this script (remove it by hand if you mean to)" >&2
+    status=1
+    continue
+  fi
   case "$MODE" in
     uninstall)
-      if [ -L "$target" ] || [ -d "$target" ]; then
+      if [ "$owned" = 1 ]; then
         rm -rf "$target"
         echo "removed $target"
       fi
       ;;
     link|copy)
       mkdir -p "$parent"
-      if [ -e "$target" ] && [ ! -L "$target" ]; then
-        echo "refusing to overwrite non-symlink $target — remove it first" >&2
-        exit 1
-      fi
-      rm -rf "$target"
+      [ "$owned" = 1 ] && rm -rf "$target"
       if [ "$MODE" = link ]; then
         ln -s "$SRC" "$target"
         echo "linked $target -> $SRC"
       else
         cp -r "$SRC" "$target"
+        : > "$target/$MARKER"
         echo "copied $SRC -> $target"
       fi
       ;;
@@ -56,3 +81,4 @@ if [ "$MODE" != uninstall ]; then
     fi
   done
 fi
+exit "$status"

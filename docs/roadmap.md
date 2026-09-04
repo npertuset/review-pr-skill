@@ -26,6 +26,24 @@ requirements repo, and a traceability CLI. Generalizing it meant:
   checklist: list every changed entry point and three ways each could
   fail, then hunt for those.
 
+Three blockers raised by a Codex counterpart review of the first
+commit, all sustained and fixed:
+
+- `install.sh --uninstall` deleted whatever directory sat at the
+  target. It now only removes a symlink into this clone or a copy
+  carrying its marker file, and reports anything else.
+- A degraded review could still emit `VERDICT: AGREE`, which an
+  orchestrator reading only that line would take as a pass. The block
+  now carries a required `STATUS: COMPLETE | DEGRADED` line; a gate
+  passes only on `AGREE` and `COMPLETE`. `REVIEWED: base= head=` pins
+  the SHAs so a stale verdict can be rejected.
+- Convention files were read from the branch under review, so a PR
+  could rewrite the rules it was judged by. Conventions now load from
+  the base SHA, author-controlled text (PR body, commits, comments,
+  diff, exchange responses) is declared evidence rather than
+  instructions, and a diff that edits a convention file is a scope
+  finding.
+
 ## Planned improvements
 
 1. **Structured output alongside the prose block.** Emit a JSON twin
