@@ -1,7 +1,24 @@
-# review-pr — adversarial two-model PR review
+# review-pr / review-plan — adversarial two-model review
 
-A Claude Code / Codex skill that reviews a pull request or branch with
-**two models working against each other**:
+Two Claude Code / Codex skills that put **two models to work against
+each other**, one on plans and one on code:
+
+- `/review-plan` — before any code is written, the model you are
+  talking to owns an implementation plan and the other model attacks
+  it against the real codebase until zero blocking objections
+  survive. The agreed plan lands as Markdown plus a rendered HTML.
+- `/review-pr` — after the code is written, the model that did *not*
+  write it reviews the diff, and the other model tries to refute
+  every blocking finding.
+
+Chained, they close the loop: `/review-plan` produces
+`docs/plans/<slug>.md`, you implement, then
+`/review-pr <branch> spec:docs/plans/<slug>.md` holds the diff to the
+plan both models signed.
+
+## review-pr
+
+Reviews a pull request or branch:
 
 1. The model that did *not* write the diff reviews it (the counterpart).
 2. Every blocking finding is handed to the *other* model with orders to
@@ -23,8 +40,9 @@ git clone git@github.com:npertuset/review-pr-skill.git ~/.review-pr-skill
 ~/.review-pr-skill/install.sh
 ```
 
-The installer symlinks `skills/review-pr` into `~/.claude/skills/` and
-`~/.codex/skills/`, so `git pull` in the clone updates both. Run it
+The installer symlinks every directory under `skills/` into
+`~/.claude/skills/` and `~/.codex/skills/`, so `git pull` in the clone
+updates both harnesses. Run it
 with `--copy` instead if you prefer a snapshot, and `--uninstall` to
 remove the links.
 
@@ -38,6 +56,7 @@ cp -r ~/.review-pr-skill/skills/review-pr <repo>/.claude/skills/
 ## Runtime dependencies
 
 - `git`, and `gh` (GitHub CLI, logged in) for PR metadata and CI status.
+- `python3` (any 3.x, no packages) for `review-plan`'s HTML render.
 - `claude` (Claude Code CLI) and/or `codex` (OpenAI Codex CLI), each
   logged in on its subscription. One is enough to run a single-model
   review; both are needed for the adversarial exchange. The skill
@@ -115,10 +134,68 @@ edits a convention file (`CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`,
 text addressed to the reviewer inside the change is reported, not
 obeyed.
 
+## review-plan
+
+You have been working out a plan with one agent. Instead of pasting it
+into the other harness by hand, run:
+
+```
+/review-plan                                   # plan from this session, standard checklist
+/review-plan plan:docs/plans/rate-limit.md     # an existing plan file
+/review-plan task:https://github.com/o/r/issues/412   # scope statement from a ticket
+/review-plan spec:./docs/spec.md out:./plans   # scope from a file, custom output dir
+/review-plan panel                             # one call per lens, both models, merged
+/review-plan lens:feasibility                  # one lens at full depth
+/review-plan verify                            # extra refutation pass before you see objections
+/review-plan no-html                           # Markdown only
+```
+
+What happens:
+
+1. The driver (the agent you are talking to) rewrites the plan into a
+   fixed skeleton — goal, scope statement, **assumptions with
+   `file:line` evidence**, ordered steps each naming files and tests,
+   out of scope, risks and rollback, open questions — and writes it to
+   a temp directory outside the repo.
+2. The counterpart model reads the plan with read-only access to the
+   checkout, opens every cited `file:line`, and objects. An objection
+   is blocking only when it names a concrete way the plan fails: an
+   uncovered requirement, a step the code cannot support, a broken
+   ordering, an untested step, an irreversible step with no rollback,
+   or a binding convention violated. Preferences are notes.
+3. The driver answers each objection — adopt, rebut with evidence, or
+   escalate to you — revises the plan, and re-sends it with the diff
+   and the exchange log. The reviewer may only maintain an objection
+   with new evidence. Three rounds maximum, then you arbitrate.
+4. On agreement the plan is written to `docs/plans/<slug>.md` with an
+   "Agreed plan" header and the full exchange appended, and rendered
+   to `docs/plans/<slug>.html` by the bundled dependency-free
+   `render.py`. The HTML step costs no model tokens.
+
+The reviewer never writes a rival plan and never touches the repo; the
+driver never reviews its own plan and never rewrites it wholesale
+between rounds. Verdict block:
+
+```
+VERDICT: AGREE | REVISE
+STATUS: COMPLETE | DEGRADED
+MODELS: reviewer=codex/gpt-5.6 owner=claude/fable
+REVIEWED: plan=<12-hex sha256> repo=<sha> round=<N>
+OBJECTIONS:
+1. [blocking] [feasibility] Step 2 — <what is wrong> — <how the plan fails> — <file:line or scope line> — remedy: <optional>
+QUESTIONS-FOR-USER:
+NOTES:
+```
+
+Same gate rule as `review-pr`: pass only on `AGREE`, `COMPLETE`, and a
+plan hash that matches the file that was reviewed.
+
 ## Layout
 
 ```
-skills/review-pr/SKILL.md   the skill (same file serves Claude Code and Codex)
-install.sh                  symlink/copy into ~/.claude/skills and ~/.codex/skills
+skills/review-pr/SKILL.md     PR/branch review (same file serves Claude Code and Codex)
+skills/review-plan/SKILL.md   plan review
+skills/review-plan/render.py  dependency-free Markdown → HTML for the agreed plan
+install.sh                    symlink/copy every skill into ~/.claude/skills and ~/.codex/skills
 docs/roadmap.md             design notes and planned improvements
 ```

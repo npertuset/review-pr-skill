@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Install the review-pr skill for Claude Code and Codex on this machine.
+# Install every skill under skills/ (review-pr, review-plan) for Claude Code
+# and Codex on this machine.
 #
 #   ./install.sh            symlink (git pull keeps both harnesses current)
 #   ./install.sh --copy     copy a snapshot instead of linking
@@ -11,9 +12,11 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC="$HERE/skills/review-pr"
 MARKER=".installed-by-review-pr-skill"
-TARGETS=("$HOME/.claude/skills/review-pr" "$HOME/.codex/skills/review-pr")
+SKILLS=()
+for d in "$HERE"/skills/*/; do
+  [ -f "$d/SKILL.md" ] && SKILLS+=("$(basename "$d")")
+done
 MODE="link"
 
 case "${1:-}" in
@@ -25,11 +28,11 @@ esac
 
 # 0 = nothing there, 1 = ours (symlink into this clone or marked copy), 2 = foreign
 classify() {
-  local target="$1"
+  local target="$1" src="$2"
   if [ -L "$target" ]; then
     local dest
     dest="$(readlink -f "$target" 2>/dev/null || true)"
-    [ "$dest" = "$(readlink -f "$SRC")" ] && return 1
+    [ "$dest" = "$(readlink -f "$src")" ] && return 1
     return 2
   fi
   if [ -e "$target" ]; then
@@ -40,9 +43,11 @@ classify() {
 }
 
 status=0
-for target in "${TARGETS[@]}"; do
+for skill in "${SKILLS[@]}"; do
+SRC="$HERE/skills/$skill"
+for target in "$HOME/.claude/skills/$skill" "$HOME/.codex/skills/$skill"; do
   parent="$(dirname "$target")"
-  set +e; classify "$target"; owned=$?; set -e
+  set +e; classify "$target" "$SRC"; owned=$?; set -e
   if [ "$owned" = 2 ]; then
     echo "skipping $target — not installed by this script (remove it by hand if you mean to)" >&2
     status=1
@@ -69,11 +74,12 @@ for target in "${TARGETS[@]}"; do
       ;;
   esac
 done
+done
 
 if [ "$MODE" != uninstall ]; then
   echo
-  echo "Installed. Invoke as /review-pr in Claude Code or \$review-pr in Codex."
-  for cli in claude codex gh; do
+  echo "Installed: ${SKILLS[*]}. Invoke as /<name> in Claude Code or \$<name> in Codex."
+  for cli in claude codex gh python3; do
     if command -v "$cli" >/dev/null 2>&1; then
       echo "  ✓ $cli found"
     else

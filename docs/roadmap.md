@@ -44,6 +44,32 @@ commit, all sustained and fixed:
   instructions, and a diff that edits a convention file is a scope
   finding.
 
+## review-plan
+
+Added as a sibling skill so a plan can go through the same exchange
+before any code exists. Design choices, and why:
+
+- **The plan is a file with a fixed skeleton**, and every codebase
+  assumption carries a `file:line`. That turns a prose-vs-prose
+  argument into something the reviewer can check by opening files.
+- **The driver owns the plan; the reviewer never writes a rival one.**
+  Two models each proposing full plans do not converge. Objections
+  plus one-line remedies do.
+- **Blocking has a closed definition** (uncovered requirement, step
+  the code cannot support, broken ordering, untested step, irreversible
+  step without rollback, convention violated). Anything else is a
+  note, which is what stops the two models from bikeshedding.
+- **No separate verifier by default.** In `review-pr` a third session
+  refutes findings because the driver must not judge its own code.
+  Here the driver's rebuttal is the refutation and the reviewer must
+  accept or maintain with new evidence. `verify` turns the extra pass
+  back on.
+- **HTML is rendered, never generated.** `render.py` is a
+  dependency-free converter so the shareable artifact costs zero model
+  tokens. Markdown stays the source of truth.
+- The agreed plan feeds `/review-pr <branch> spec:<plan>` so the
+  implementation is judged against what both models signed.
+
 ## Planned improvements
 
 1. **Structured output alongside the prose block.** Emit a JSON twin
@@ -73,6 +99,12 @@ commit, all sustained and fixed:
 7. **PR-comment posting as an opt-in flag** (`post`), using one
    comment per gate rather than per round, with the `MODELS:` line
    visible so readers know who judged.
+8. **review-plan: exchange-only HTML view.** Render the review exchange
+   as a collapsible per-round table (objection · lens · outcome) next
+   to the plan instead of appending it as raw Markdown.
+9. **review-plan: plan diff in the reviewer prompt as a unified diff
+   with context**, plus a `changes-only` token that restricts round ≥ 2
+   reviews to changed sections mechanically rather than by rule.
 
 ## Fit with squirrel-agent
 
